@@ -124,39 +124,3 @@ app.use(function(err, req, res, next) {
 app.listen(process.env.PORT, function () {
   console.log('Node.js listening ...');
 });
-
-
-// function to find the record by shorturl in the database and set it's original url to the matchedURL variable
-function findInDB(id){
-  console.log('Attempting to connect to: ' + url);
-  mongoClient.connect(url, function (err, db) {
-  if (err) {
-    console.log('Unable to connect to the mongoDB server. Error:', err);
-  } else {
-    console.log('Connection established to', url);
-    
-    var collection = db.collection('urls');
-    console.log('looking for: ' + id);
-    collection.find({
-      "shorturl": +id
-    }).toArray(function(err, documents) {
-      
-      if (err) {
-      console.log('Unable to perform find request. Error: ', err);
-      } else {
-        if (documents.length > 0){
-          console.log('Successfully found the document. Original url is: ' + documents[0].originalurl);
-          matchedURL =  documents[0].originalurl;  
-          console.log('matchedurl is: ' + matchedURL);
-        } else {
-          console.log('Document not found');
-          matchedURL = "";
-        }
-      }
-    })
-    
-    //Close connection
-    db.close();
-      }
-  });
-}
