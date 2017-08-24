@@ -1,3 +1,4 @@
+var mongoFunctions = require('./mongoFunctions');
 var fs = require('fs');
 var express = require('express');
 var parser = require('ua-parser');
@@ -47,16 +48,16 @@ app.route('/new/*')
     requestedURL = req.url.replace("/new/","");
     urlID = Math.floor(Math.random() * 9999) + 1;
   
-    // checks to make sure the supplied URL is in a valid URL format: http://www.google.com or https://www.google.com
+    // regular expresssion to make sure the supplied URL is in a valid URL format: http://www.google.com or https://www.google.com
     var expression = /https?:\/\/(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)/;
     var regex = new RegExp(expression);
+  
     // if url is valid, store it in database and return original url and short url as JSON
     if (requestedURL.match(regex)) {
       shortURL = "https://hodakkm-url-shortener-microservice.glitch.me/" + urlID
-      //console.log("requestedURL is: " + requestedURL + ' shortURL is: ' + shortURL);
-  
-      // calls function to insert document in the database
-      insertToDB(requestedURL, urlID);
+        
+      // calls function from the mongoFunctions module to insert document in the database
+      mongoFunctions.dbInsert(requestedURL, urlID);
 
       // returns the same document info as JSON
         results = { 
@@ -73,27 +74,31 @@ app.route('/new/*')
        }      
     });
 
-// regex to match 4 digit number. I don't want /123, /12345, /abcd or /12a45 to work
+// route to return an original url when passed a short url
+// uses a regular expression to match 4 digit number. I don't want /123, /12345, /abcd or /12a45 to work
 app.route('/[0-9]{4,4}/')
     .get(function(req, res) {
     lookupURL = req.url.replace('/','');
     console.log('requested id is: ' + lookupURL);
     
     //call the db find function which sets matchedURL to the match
-		findInDB(lookupURL);
+		//findInDB(lookupURL);
   
-    //waits for a half second to give the findInDB function time to complete  
-    setTimeout(function(){
-      console.log('matchedURL here is: ' + matchedURL);
-      if (matchedURL == ""){
-        results = {
-          "error": "This url is not on the database.  Try https://hodakkm-url-shortener-microservice.glitch.me/4620 to see a working example."
-        };
-        res.json(results);
-      } else {
-        res.redirect(matchedURL);
-      }
-    }, 500);
+    var tempURL;
+    
+    mongoFunctions.dbFind(lookupURL, function(matchedURL){
+      console.log('tempURL first is: ' + matchedURL);
+        if (matchedURL == ""){
+          results = {
+            "error": "This url is not on the database.  Try https://hodakkm-url-shortener-microservice.glitch.me/4620 to see a working example."
+          };
+          res.json(results);
+        } else {
+          res.redirect(matchedURL);
+        }
+      
+      });
+      
     
     });
     
@@ -119,65 +124,3 @@ app.use(function(err, req, res, next) {
 app.listen(process.env.PORT, function () {
   console.log('Node.js listening ...');
 });
-
-// function to connect to mongoDB and insert the record to the urls collection
-function insertToDB(originalURL, shortURL){
-  mongoClient.connect(url, function (err, db) {
-  if (err) {
-    console.log('Unable to connect to the mongoDB server. Error:', err);
-  } else {
-    console.log('Connection established to', url);
-
-    var collection = db.collection('urls');
-    
-    collection.insert({
-      originalurl: originalURL,
-      shorturl: shortURL
-    }, function(err, data) {
-      if (err) {
-      console.log('Unable to insert the document. Error: ', err);
-      } else {
-        console.log('successfully inserted document');
-      }
-    })
-
-    //Close connection
-    db.close();
-      }
-  });
-}
-
-// function to find the record by shorturl in the database and set it's original url to the matchedURL variable
-function findInDB(id){
-  console.log('Attempting to connect to: ' + url);
-  mongoClient.connect(url, function (err, db) {
-  if (err) {
-    console.log('Unable to connect to the mongoDB server. Error:', err);
-  } else {
-    console.log('Connection established to', url);
-    
-    var collection = db.collection('urls');
-    console.log('looking for: ' + id);
-    collection.find({
-      "shorturl": +id
-    }).toArray(function(err, documents) {
-      
-      if (err) {
-      console.log('Unable to perform find request. Error: ', err);
-      } else {
-        if (documents.length > 0){
-          console.log('Successfully found the document. Original url is: ' + documents[0].originalurl);
-          matchedURL =  documents[0].originalurl;  
-          console.log('matchedurl is: ' + matchedURL);
-        } else {
-          console.log('Document not found');
-          matchedURL = "";
-        }
-      }
-    })
-    
-    //Close connection
-    db.close();
-      }
-  });
-}
